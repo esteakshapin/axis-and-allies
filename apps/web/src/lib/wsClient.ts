@@ -1,7 +1,41 @@
+// Player in the game lobby
+export type LobbyPlayer = {
+  id: string;
+  name: string;
+  color: string;
+  role: 'host' | 'client';
+  team: 'axis' | 'allies' | null;
+  assignedCountries: string[];
+  ready: boolean;
+};
+
+// Country/Territory assignment
+export type CountryAssignment = {
+  id: string;
+  name: string;
+  flagImage: string;
+  status: 'available' | 'assigned';
+  assignedToPlayerId?: string;
+};
+
+// Client action payload - what clients send to host
 export type ClientActionPayload = {
   clientId: string;
-  country?: string;
-  ready?: boolean;
+  action:
+    | { type: 'join_team'; team: 'axis' | 'allies' | null }
+    | { type: 'assign_country'; countryId: string; playerId: string }
+    | { type: 'unassign_country'; countryId: string }
+    | { type: 'set_ready'; ready: boolean }
+    | { type: 'player_info'; name: string; color: string };
+};
+
+// Host update payload - what host broadcasts to all clients
+export type HostUpdatePayload = {
+  gameId: string;
+  players: LobbyPlayer[];
+  axisCountries: CountryAssignment[];
+  alliedCountries: CountryAssignment[];
+  started: boolean;
 };
 
 type ClientMessage =
@@ -9,19 +43,6 @@ type ClientMessage =
   | { type: 'join_game'; clientId: string; gameId: string }
   | { type: 'host_update'; payload: HostUpdatePayload }
   | { type: 'client_action'; payload: ClientActionPayload };
-
-export type LobbyPlayer = {
-  id: string;
-  role: 'host' | 'client';
-  country?: string;
-  ready: boolean;
-};
-
-export type HostUpdatePayload = {
-  gameId: string;
-  players: LobbyPlayer[];
-  started: boolean;
-};
 
 type ServerMessage =
   | { type: 'game_created'; gameId: string; clientId: string }
