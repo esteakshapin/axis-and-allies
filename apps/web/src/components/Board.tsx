@@ -185,10 +185,10 @@ export function Board({
       // Create world container for pan/zoom
       const world = new Container();
 
-      // Calculate minimum scale that fits the map in the viewport
+      // Calculate minimum scale that fits the entire map in the viewport (contain behavior)
       const minScaleX = app.canvas.width / MAP_WIDTH;
       const minScaleY = app.canvas.height / MAP_HEIGHT;
-      const minScale = Math.max(minScaleX, minScaleY);
+      const minScale = Math.min(minScaleX, minScaleY);
 
       // Use at least the minimum scale
       const initialScale = Math.max(scaleRef.current, minScale);
@@ -616,10 +616,10 @@ export function Board({
         const mouseX = e.clientX - rect.left;
         const mouseY = e.clientY - rect.top;
 
-        // Calculate minimum scale that fits the map in the viewport
+        // Calculate minimum scale that fits the entire map in the viewport (contain behavior)
         const minScaleX = canvas.width / MAP_WIDTH;
         const minScaleY = canvas.height / MAP_HEIGHT;
-        const minScale = Math.max(minScaleX, minScaleY);
+        const minScale = Math.min(minScaleX, minScaleY);
 
         const scaleFactor = e.deltaY < 0 ? 1.1 : 0.9;
         const newScale = Math.max(minScale, Math.min(2, scaleRef.current * scaleFactor));
