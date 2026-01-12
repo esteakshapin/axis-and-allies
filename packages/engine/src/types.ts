@@ -80,6 +80,24 @@ export const POWER_COLORS: Record<Power, string> = {
   neutral_axis: '#8a7a5d',
 };
 
+/** Maps power IDs to sprite folder names */
+export const POWER_FOLDER_NAMES: Record<Power, string> = {
+  germany: 'Germans',
+  soviet_union: 'Russians',
+  japan: 'Japanese',
+  united_states: 'Americans',
+  china: 'Chinese',
+  united_kingdom: 'British',
+  italy: 'Italians',
+  anzac: 'ANZAC',
+  france: 'French',
+  dutch: 'Dutch',
+  mongolians: 'Mongolians',
+  neutral_true: 'Neutral_True',
+  neutral_allies: 'Neutral_Allies',
+  neutral_axis: 'Neutral_Axis',
+};
+
 // ------------------------------------------------------------
 // Phases
 // ------------------------------------------------------------
@@ -186,6 +204,24 @@ export const UNIT_STATS: Record<UnitType, UnitStats> = {
   transport:          { cost: 7,  attack: 0, defense: 0, movement: 2, transportCapacity: { infantry: 2, other: 1 } },
 };
 
+/** Maps unit type IDs to sprite filenames (without .png extension) */
+export const UNIT_SPRITE_NAMES: Record<UnitType, string> = {
+  infantry: 'infantry',
+  artillery: 'artillery',
+  mechanized_infantry: 'mech_infantry',
+  tank: 'armour',
+  aaa: 'aaGun',
+  fighter: 'fighter',
+  tactical_bomber: 'tactical_bomber',
+  strategic_bomber: 'bomber',
+  submarine: 'submarine',
+  destroyer: 'destroyer',
+  cruiser: 'cruiser',
+  carrier: 'carrier',
+  battleship: 'battleship',
+  transport: 'transport',
+};
+
 /** A stack of units of a single type belonging to one power */
 export interface UnitStack {
   type: UnitType;
@@ -215,6 +251,14 @@ export const FACILITY_MAX_DAMAGE: Record<FacilityType, number> = {
 export const FACILITY_PRODUCTION_LIMIT: Record<'minor_ic' | 'major_ic', number> = {
   minor_ic: 3,
   major_ic: 10,
+};
+
+/** Maps facility type IDs to sprite filenames (without .png extension) */
+export const FACILITY_SPRITE_NAMES: Record<FacilityType, string> = {
+  minor_ic: 'factory_minor',
+  major_ic: 'factory_major',
+  air_base: 'airfield',
+  naval_base: 'harbour',
 };
 
 // ------------------------------------------------------------

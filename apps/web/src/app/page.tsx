@@ -1,13 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { GLOBAL_SPACES } from '@aa/engine';
+import { useState, useMemo } from 'react';
+import { GLOBAL_SPACES, createInitialGameState } from '@aa/engine';
 import { Board } from '@/components/Board';
 import { Inspector } from '@/components/Inspector';
 
 export default function Home() {
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [hoveredSpaceId, setHoveredSpaceId] = useState<string | null>(null);
+
+  // Create initial game state once
+  const gameState = useMemo(() => createInitialGameState(), []);
 
   const selectedSpace = selectedSpaceId
     ? GLOBAL_SPACES.find((s) => s.id === selectedSpaceId)
@@ -34,6 +37,7 @@ export default function Home() {
         <div style={{ flex: 1, position: 'relative' }}>
           <Board
             spaces={GLOBAL_SPACES}
+            gameState={gameState}
             selectedSpaceId={selectedSpaceId}
             hoveredSpaceId={hoveredSpaceId}
             onSpaceClick={setSelectedSpaceId}
