@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Eye } from 'lucide-react';
+import { Eye, Crown } from 'lucide-react';
 
 interface Player {
   id: string;
   name: string;
   color: string;
-  team: 'axis' | 'allies' | null;
-  assignedCountries: string[];
+  connected?: boolean;
+  isHost?: boolean;
 }
 
 interface SpectatorSectionProps {
@@ -65,35 +65,45 @@ export function SpectatorSection({
             {isDragOver ? 'Drop here to leave your team' : 'All players assigned to teams'}
           </span>
         ) : (
-          spectators.map((player) => (
-            <div
-              key={player.id}
-              draggable={player.id === currentPlayerId}
-              onDragStart={(e) => {
-                e.dataTransfer.setData('text/plain', player.id);
-                e.dataTransfer.effectAllowed = 'move';
-                onPlayerDragStart(player.id);
-              }}
-            >
-              <motion.div
-                whileHover={player.id === currentPlayerId ? { scale: 1.05 } : {}}
-                whileTap={player.id === currentPlayerId ? { scale: 0.95 } : {}}
-                className={`
-                  flex items-center gap-2 px-3 py-2 rounded
-                  border-2 border-ink/20 bg-paper-light
-                  ${player.id === currentPlayerId ? 'cursor-grab active:cursor-grabbing ring-2 ring-military-khaki' : ''}
-                `}
+          spectators.map((player) => {
+            const isDisconnected = player.connected === false;
+            return (
+              <div
+                key={player.id}
+                draggable={player.id === currentPlayerId}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', player.id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  onPlayerDragStart(player.id);
+                }}
               >
-                <div className={`w-3 h-3 rounded-full ${player.color}`} />
-                <span className="font-typewriter text-sm text-ink">
-                  {player.name}
-                  {player.id === currentPlayerId && (
-                    <span className="text-ink-faded ml-1">(You)</span>
-                  )}
-                </span>
-              </motion.div>
-            </div>
-          ))
+                <motion.div
+                  whileHover={player.id === currentPlayerId ? { scale: 1.05 } : {}}
+                  whileTap={player.id === currentPlayerId ? { scale: 0.95 } : {}}
+                  className={`
+                    flex items-center gap-2 px-3 py-2 rounded
+                    border-2 border-ink/20 bg-paper-light
+                    ${player.id === currentPlayerId ? 'cursor-grab active:cursor-grabbing ring-2 ring-military-khaki' : ''}
+                    ${isDisconnected ? 'opacity-50' : ''}
+                  `}
+                >
+                  <div className={`w-3 h-3 rounded-full ${player.color} ${isDisconnected ? 'grayscale' : ''}`} />
+                  <span className={`font-typewriter text-sm ${isDisconnected ? 'text-ink-faded' : 'text-ink'}`}>
+                    {player.name}
+                    {player.isHost && (
+                      <Crown size={12} className="inline ml-1 text-military-khaki" />
+                    )}
+                    {player.id === currentPlayerId && (
+                      <span className="text-ink-faded ml-1">(You)</span>
+                    )}
+                    {isDisconnected && (
+                      <span className="text-military-red ml-1 text-xs">(Offline)</span>
+                    )}
+                  </span>
+                </motion.div>
+              </div>
+            );
+          })
         )}
       </div>
 
