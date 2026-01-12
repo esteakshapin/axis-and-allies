@@ -1,5 +1,3 @@
-'use client';
-
 import { useEffect, useRef } from 'react';
 import { Application, Graphics, Container, Sprite, Assets, Text, TextStyle } from 'pixi.js';
 import type { SpaceDef, Point, GameState } from '@aa/engine';

@@ -1,5 +1,3 @@
-'use client';
-
 import type { SpaceDef } from '@aa/engine';
 
 interface InspectorProps {
