@@ -63,21 +63,21 @@ export const TURN_ORDER: MajorPower[] = [
 
 export const POWER_COLORS: Record<Power, string> = {
   // Major powers
-  germany: '#5a5a5a',
-  soviet_union: '#af2828',
-  japan: '#DCB53F',
-  united_states: '#5a5a00',
-  china: '#713778',
-  united_kingdom: '#916400',
-  italy: '#58360E',
-  anzac: '#4d7f7f',
-  france: '#156CC4',
+  germany: '#8a8a8a',
+  soviet_union: '#d64545',
+  japan: '#f4d76b',
+  united_states: '#7a9a5a',
+  china: '#9a6ba0',
+  united_kingdom: '#b8853a',
+  italy: '#8b5a2e',
+  anzac: '#6ba5a5',
+  france: '#4a8fd4',
   // Minor factions
-  dutch: '#ff6d00',
-  mongolians: '#d8ba7c',
-  neutral_true: '#b88a6c',
-  neutral_allies: '#d8ba7c',
-  neutral_axis: '#6A5B3D',
+  dutch: '#ff8c42',
+  mongolians: '#e6d4a8',
+  neutral_true: '#d4b89a',
+  neutral_allies: '#e6d4a8',
+  neutral_axis: '#8a7a5d',
 };
 
 // ------------------------------------------------------------

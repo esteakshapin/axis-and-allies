@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Application, Graphics, Container, Sprite, Assets } from 'pixi.js';
+import { Application, Graphics, Container, Sprite, Assets, Text, TextStyle } from 'pixi.js';
 import type { SpaceDef, Point } from '@aa/engine';
-import { MAP_WIDTH, MAP_HEIGHT, VICTORY_CITIES, CAPITALS, DECORATIONS } from '@aa/engine';
+import { MAP_WIDTH, MAP_HEIGHT, VICTORY_CITIES, CAPITALS, DECORATIONS, POWER_COLORS } from '@aa/engine';
 
 interface BoardProps {
   spaces: SpaceDef[];
@@ -194,9 +194,49 @@ export function Board({
         world.addChildAt(mapSprite, 0);
         console.log('Map loaded successfully');
 
+        // Create a container for territory colors (above base map)
+        const territoryColorsContainer = new Container();
+        world.addChildAt(territoryColorsContainer, 1);
+
+        // Draw filled polygons for each land territory based on controller
+        const currentSpaces = spacesRef.current;
+        for (const space of currentSpaces) {
+          if (space.kind === 'land' && space.originalController) {
+            const colorHex = POWER_COLORS[space.originalController];
+            // Convert hex string like '#5a5a5a' to number 0x5a5a5a
+            const colorNum = parseInt(colorHex.replace('#', ''), 16);
+
+            const territoryGraphics = new Graphics();
+            for (const polygon of space.polygons) {
+              const flatPoly = polygon.flatMap((p) => [p.x, p.y]);
+              // Fill with territory color
+              territoryGraphics.poly(flatPoly, true);
+              territoryGraphics.fill({ color: colorNum, alpha: 1 });
+              // Add black border
+              territoryGraphics.poly(flatPoly, true);
+              territoryGraphics.stroke({ color: 0x000000, width: 1 });
+            }
+            territoryColorsContainer.addChild(territoryGraphics);
+          }
+        }
+        console.log(`Rendered territory colors for ${currentSpaces.filter(s => s.kind === 'land' && s.originalController).length} territories`);
+
+        // Load relief tiles overlay (shows terrain variations like impassable regions)
+        try {
+          const reliefTexture = await Assets.load('/map/reliefTiles.png');
+          const reliefSprite = new Sprite(reliefTexture);
+          reliefSprite.anchor.set(0, 0);
+          reliefSprite.position.set(0, 0);
+          reliefSprite.alpha = 0.4; // Semi-transparent for blending with territory colors
+          world.addChildAt(reliefSprite, 2);
+          console.log('Relief tiles loaded successfully');
+        } catch (err) {
+          console.warn('Failed to load relief tiles:', err);
+        }
+
         // Create a container for decorations
         const decorationsContainer = new Container();
-        world.addChildAt(decorationsContainer, 1);
+        world.addChildAt(decorationsContainer, 3);
 
         // Load decoration sprites
         for (const decoration of DECORATIONS) {
@@ -213,7 +253,7 @@ export function Board({
 
         // Create a container for markers
         const markersContainer = new Container();
-        world.addChildAt(markersContainer, 2);
+        world.addChildAt(markersContainer, 4);
 
         // Draw victory city markers
         for (const vc of VICTORY_CITIES) {
@@ -234,44 +274,6 @@ export function Board({
           markersContainer.addChild(marker);
         }
         console.log(`Rendered ${CAPITALS.length} capital markers`);
-
-        // DEBUG: Draw map boundary to verify coordinate alignment
-        const debugBorder = new Graphics();
-        // Draw outer border at exact map dimensions
-        debugBorder.rect(0, 0, MAP_WIDTH, MAP_HEIGHT);
-        debugBorder.stroke({ color: 0xff0000, width: 4 });
-        // Draw corner markers
-        const cornerSize = 50;
-        // Top-left corner (0,0)
-        debugBorder.moveTo(0, cornerSize);
-        debugBorder.lineTo(0, 0);
-        debugBorder.lineTo(cornerSize, 0);
-        debugBorder.stroke({ color: 0x00ff00, width: 6 });
-        // Top-right corner (MAP_WIDTH, 0)
-        debugBorder.moveTo(MAP_WIDTH - cornerSize, 0);
-        debugBorder.lineTo(MAP_WIDTH, 0);
-        debugBorder.lineTo(MAP_WIDTH, cornerSize);
-        debugBorder.stroke({ color: 0x00ff00, width: 6 });
-        // Bottom-left corner (0, MAP_HEIGHT)
-        debugBorder.moveTo(0, MAP_HEIGHT - cornerSize);
-        debugBorder.lineTo(0, MAP_HEIGHT);
-        debugBorder.lineTo(cornerSize, MAP_HEIGHT);
-        debugBorder.stroke({ color: 0x00ff00, width: 6 });
-        // Bottom-right corner (MAP_WIDTH, MAP_HEIGHT)
-        debugBorder.moveTo(MAP_WIDTH - cornerSize, MAP_HEIGHT);
-        debugBorder.lineTo(MAP_WIDTH, MAP_HEIGHT);
-        debugBorder.lineTo(MAP_WIDTH, MAP_HEIGHT - cornerSize);
-        debugBorder.stroke({ color: 0x00ff00, width: 6 });
-        // Add crosshairs at map center
-        const centerX = MAP_WIDTH / 2;
-        const centerY = MAP_HEIGHT / 2;
-        debugBorder.moveTo(centerX - 100, centerY);
-        debugBorder.lineTo(centerX + 100, centerY);
-        debugBorder.moveTo(centerX, centerY - 100);
-        debugBorder.lineTo(centerX, centerY + 100);
-        debugBorder.stroke({ color: 0xffff00, width: 2 });
-        markersContainer.addChild(debugBorder);
-        console.log(`DEBUG: Map bounds = ${MAP_WIDTH} x ${MAP_HEIGHT}`);
 
       } catch (error) {
         console.error('Failed to load map:', error);

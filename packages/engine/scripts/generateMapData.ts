@@ -349,13 +349,8 @@ function generateMapData() {
   }
   console.log(`  Found ${decorationsArray.length} decorations`);
 
-  // Filter to only include key decorations we've copied to public folder
-  const keyDecorations = decorationsArray.filter(d =>
-    d.file.startsWith('cs_') ||
-    d.file.startsWith('Impassable-') ||
-    d.file.startsWith('Pro-')
-  );
-  console.log(`  Filtered to ${keyDecorations.length} key decorations`);
+  // Use all decorations from decorations.txt (all PNGs are in misc/ folder)
+  console.log(`  Using all ${decorationsArray.length} decorations`);
 
   // Generate TypeScript file
   console.log('\nGenerating globalMap.ts...');
@@ -405,8 +400,8 @@ export const PU_PLACEMENTS: Record<string, { x: number; y: number }> = ${JSON.st
     .replace(/"y":/g, 'y:')
 };
 
-// Decoration overlays (canals, impassable markers, neutral markers)
-export const DECORATIONS: Array<{ file: string; x: number; y: number }> = ${JSON.stringify(keyDecorations, null, 2)
+// Decoration overlays from decorations.txt
+export const DECORATIONS: Array<{ file: string; x: number; y: number }> = ${JSON.stringify(decorationsArray, null, 2)
     .replace(/"file":/g, 'file:')
     .replace(/"x":/g, 'x:')
     .replace(/"y":/g, 'y:')
