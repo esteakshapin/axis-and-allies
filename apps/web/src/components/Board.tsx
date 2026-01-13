@@ -12,6 +12,7 @@ import {
   UNIT_SPRITE_NAMES,
   FACILITY_SPRITE_NAMES,
   SPACES_BY_ID,
+  SPACES_BY_NAME,
 } from '@aa/engine';
 
 interface BoardProps {
@@ -279,24 +280,201 @@ export function Board({
         // Create a container for markers
         const markersContainer = new Container();
         world.addChildAt(markersContainer, 4);
+        
+        // Create a container for city labels (behind units so they don't block gameplay)
+        const labelsContainer = new Container();
+        world.addChildAt(labelsContainer, 3);
+        
+        // Mapping from territory names to capital city names
+        const capitalCityNames: Record<string, string> = {
+          'United Kingdom': 'London',
+          'Germany': 'Berlin',
+          'Southern Italy': 'Rome',
+          'Eastern United States': 'Washington',
+          'France': 'Paris',
+          'Russia': 'Moscow',
+          'Himalayas': 'Calcutta',
+          'Japan': 'Tokyo',
+          'New South Wales': 'Sydney',
+          'India': 'Calcutta',
+          'Ontario': 'Ottawa',
+        };
+        
+        // Mapping from territory names to victory city names
+        const victoryCityNames: Record<string, string> = {
+          'Ontario': 'Toronto',
+          'Egypt': 'Cairo',
+          'Poland': 'Warsaw',
+          'Volgograd': 'Stalingrad',
+          'Novgorod': 'Leningrad',
+          'Kwangtung': 'Hong Kong',
+          'Philippines': 'Manila',
+          'Kiangsu': 'Shanghai',
+          'Western United States': 'Los Angeles',
+          'Hawaiian Islands': 'Honolulu',
+        };
 
-        // Draw victory city markers
+        // Helper function to determine text position based on marker location
+        const getTextPosition = (x: number, y: number, offset: number = 12): { x: number; y: number; anchor: { x: number; y: number } } => {
+          const mapCenterX = MAP_WIDTH / 2;
+          const mapCenterY = MAP_HEIGHT / 2;
+          
+          // Determine position based on which quadrant/region the marker is in
+          // If marker is in left half of map, put text to the right
+          // If marker is in right half, put text to the left
+          // If marker is in top half, prefer text below
+          // If marker is in bottom half, prefer text above
+          
+          const isLeftHalf = x < mapCenterX;
+          const isTopHalf = y < mapCenterY;
+          
+          // Use quadrant-based positioning
+          let textX = x;
+          let textY = y;
+          let anchorX = 0.5;
+          let anchorY = 0.5;
+          if (isLeftHalf) {
+            // Left side: put text to the right
+            textX = x + offset;
+            anchorX = 0;
+          } else {
+            // Right side: put text to the left
+            textX = x - offset;
+            anchorX = 1;
+          }
+          
+          if (isTopHalf) {
+            // Top half: put text below
+            textY = y + offset;
+            anchorY = 0;
+          } else {
+            // Bottom half: put text above
+            textY = y - offset;
+            anchorY = 1;
+          }
+          
+          return { x: textX, y: textY, anchor: { x: anchorX, y: anchorY } };
+        };
+
+        // Draw victory city markers (red squares) and labels
         for (const vc of VICTORY_CITIES) {
           const marker = new Graphics();
-          marker.star(vc.x, vc.y, 5, 12, 6);
-          marker.fill({ color: 0xffd700 });
-          marker.stroke({ color: 0x8b6914, width: 1 });
+          const squareSize = 8;
+          marker.rect(vc.x - squareSize / 2, vc.y - squareSize / 2, squareSize, squareSize);
+          marker.fill({ color: 0xff0000 });
+          marker.stroke({ color: 0x000000, width: 1 });
           markersContainer.addChild(marker);
+          
+          // Get city name from mapping, fallback to territory name if not found
+          const cityName = victoryCityNames[vc.territory] || vc.territory;
+          
+          // Hardcoded positioning for specific victory cities
+          let textX = vc.x;
+          let textY = vc.y;
+          let anchorX = 0.5;
+          let anchorY = 0.5;
+          const offset = 14;
+          
+          if (cityName === 'Toronto') {
+            // Directly below the victory city marker
+            textX = vc.x;
+            textY = vc.y + offset;
+            anchorX = 0.5;
+            anchorY = 0;
+          } else {
+            // Use quadrant-based positioning
+            const textPos = getTextPosition(vc.x, vc.y, offset);
+            textX = textPos.x;
+            textY = textPos.y;
+            anchorX = textPos.anchor.x;
+            anchorY = textPos.anchor.y;
+          }
+          
+          const cityText = new Text({
+            text: cityName,
+            style: new TextStyle({
+              fontSize: 14,
+              fontWeight: 'bold',
+              fill: 0xff0000,
+              stroke: { color: 0xffffff, width: 3 }, // White outline for visibility
+            }),
+          });
+          cityText.anchor.set(anchorX, anchorY);
+          cityText.position.set(textX, textY);
+          labelsContainer.addChild(cityText);
         }
         console.log(`Rendered ${VICTORY_CITIES.length} victory city markers`);
 
-        // Draw capital markers
+        // Draw capital markers (smaller stars) and labels
         for (const capital of CAPITALS) {
           const marker = new Graphics();
-          marker.star(capital.x, capital.y, 5, 16, 8);
+          marker.star(capital.x, capital.y, 5, 8, 4);
           marker.fill({ color: 0xff4444 });
-          marker.stroke({ color: 0xffffff, width: 2 });
+          marker.stroke({ color: 0xffffff, width: 1 });
           markersContainer.addChild(marker);
+          
+          // Get city name from mapping, fallback to territory name if not found
+          const cityName = capitalCityNames[capital.territory] || capital.territory;
+          
+          // Custom positioning for specific well-known capitals
+          let textX = capital.x;
+          let textY = capital.y;
+          let anchorX = 0.5;
+          let anchorY = 0.5;
+          const offset = 12;
+          
+          // Hardcoded positioning for specific capitals
+          if (cityName === 'London') {
+            // To the right of the star
+            textX = capital.x + offset;
+            textY = capital.y;
+            anchorX = 0;
+            anchorY = 0.5;
+          } else if (cityName === 'Berlin') {
+            // Below the star
+            textX = capital.x;
+            textY = capital.y + offset;
+            anchorX = 0.5;
+            anchorY = 0;
+          } else if (cityName === 'Paris') {
+            // To the left of the star
+            textX = capital.x - offset;
+            textY = capital.y;
+            anchorX = 1;
+            anchorY = 0.5;
+          } else if (cityName === 'Rome') {
+            // To the left of the star
+            textX = capital.x - offset;
+            textY = capital.y;
+            anchorX = 1;
+            anchorY = 0.5;
+          } else if (cityName === 'Tokyo') {
+            // To the right of the star
+            textX = capital.x + offset;
+            textY = capital.y;
+            anchorX = 0;
+            anchorY = 0.5;
+          } else {
+            // Use quadrant-based positioning
+            const textPos = getTextPosition(capital.x, capital.y, offset);
+            textX = textPos.x;
+            textY = textPos.y;
+            anchorX = textPos.anchor.x;
+            anchorY = textPos.anchor.y;
+          }
+          
+          const capitalText = new Text({
+            text: cityName,
+            style: new TextStyle({
+              fontSize: 14,
+              fontWeight: 'bold',
+              fill: 0xff0000,
+              stroke: { color: 0xffffff, width: 3 }, // White outline for visibility
+            }),
+          });
+          capitalText.anchor.set(anchorX, anchorY);
+          capitalText.position.set(textX, textY);
+          labelsContainer.addChild(capitalText);
         }
         console.log(`Rendered ${CAPITALS.length} capital markers`);
 
