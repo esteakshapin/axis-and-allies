@@ -1,105 +1,40 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Copy, ArrowLeft, Settings, Map as MapIcon, Users } from 'lucide-react';
+import { Copy, ArrowLeft, Settings, Map as MapIcon, Users, Crown } from 'lucide-react';
 import { Button } from './ui/Button';
 import { TeamSection } from './TeamSection';
 import { SpectatorSection } from './SpectatorSection';
-import { CountryStatus } from './CountryAvatar';
-import { WsClient, LobbyPlayer, CountryAssignment, HostUpdatePayload } from '@/lib/wsClient';
+import { WsClient, PlayerInfo, CountryAssignment, GameState } from '@/lib/wsClient';
 
 interface GameLobbyProps {
   gameCode: string;
   playerName: string;
   ws: WsClient | null;
-  role: 'host' | 'client';
-  clientId: string;
+  initialState?: GameState;
   onLeave: () => void;
   onStartGame: () => void;
 }
-
-// WW2 Countries with flag images from /map/flags/
-const AXIS_COUNTRIES: CountryAssignment[] = [
-  { id: 'germany', name: 'Germany', flagImage: '/map/flags/Germans.png', status: 'available' },
-  { id: 'italy', name: 'Italy', flagImage: '/map/flags/Italians.png', status: 'available' },
-  { id: 'japan', name: 'Japan', flagImage: '/map/flags/Japanese.png', status: 'available' },
-];
-
-const ALLIED_COUNTRIES: CountryAssignment[] = [
-  { id: 'united_states', name: 'United States', flagImage: '/map/flags/Americans.png', status: 'available' },
-  { id: 'soviet_union', name: 'Soviet Union', flagImage: '/map/flags/Russians.png', status: 'available' },
-  { id: 'united_kingdom_europe', name: 'UK Europe', flagImage: '/map/flags/UK_Europe.png', status: 'available' },
-  { id: 'united_kingdom_pacific', name: 'UK Pacific', flagImage: '/map/flags/UK_Pacific.png', status: 'available' },
-  { id: 'france', name: 'France', flagImage: '/map/flags/French.png', status: 'available' },
-  { id: 'china', name: 'China', flagImage: '/map/flags/Chinese.png', status: 'available' },
-  { id: 'anzac', name: 'ANZAC', flagImage: '/map/flags/ANZAC.png', status: 'available' },
-];
-
-// Generate a random color for player
-const PLAYER_COLORS = [
-  'bg-red-700', 'bg-blue-700', 'bg-green-700', 'bg-yellow-600',
-  'bg-purple-700', 'bg-pink-600', 'bg-orange-600', 'bg-cyan-700',
-];
-
-const getRandomColor = () => PLAYER_COLORS[Math.floor(Math.random() * PLAYER_COLORS.length)];
 
 export function GameLobby({
   gameCode,
   playerName,
   ws,
-  role,
-  clientId,
+  initialState,
   onLeave,
   onStartGame
 }: GameLobbyProps) {
-  // Local player info
-  const myColor = useRef(getRandomColor());
-
-  // Game state
-  const [players, setPlayers] = useState<LobbyPlayer[]>([
-    {
-      id: clientId,
-      name: playerName,
-      color: myColor.current,
-      role: role,
-      team: null,
-      assignedCountries: [],
-      ready: false,
-    },
-  ]);
-
-  const [axisCountries, setAxisCountries] = useState<CountryAssignment[]>(
-    AXIS_COUNTRIES.map(c => ({ ...c }))
-  );
-
-  const [alliedCountries, setAlliedCountries] = useState<CountryAssignment[]>(
-    ALLIED_COUNTRIES.map(c => ({ ...c }))
-  );
-
+  // Game state from server
+  const [players, setPlayers] = useState<PlayerInfo[]>(initialState?.players ?? []);
+  const [axisCountries, setAxisCountries] = useState<CountryAssignment[]>(initialState?.axisCountries ?? []);
+  const [alliedCountries, setAlliedCountries] = useState<CountryAssignment[]>(initialState?.alliedCountries ?? []);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>(
     ws ? 'connected' : 'disconnected'
   );
 
-  // Broadcast state to all clients (host only)
-  const broadcastState = useCallback(() => {
-    if (role !== 'host' || !ws) return;
-
-    const payload: HostUpdatePayload = {
-      gameId: gameCode,
-      players,
-      axisCountries,
-      alliedCountries,
-      started: false,
-    };
-
-    ws.send({ type: 'host_update', payload });
-  }, [ws, role, gameCode, players, axisCountries, alliedCountries]);
-
-  // Broadcast whenever state changes (host only)
-  useEffect(() => {
-    if (role === 'host') {
-      broadcastState();
-    }
-  }, [players, axisCountries, alliedCountries, role, broadcastState]);
+  // Find current player info
+  const currentPlayer = players.find(p => p.name === playerName);
+  const currentPlayerTeam = currentPlayer?.team ?? null;
+  const isHost = currentPlayer?.isHost ?? false;
 
   // Set up WebSocket handlers
   useEffect(() => {
@@ -107,120 +42,41 @@ export function GameLobby({
 
     const cleanups: (() => void)[] = [];
 
-    if (role === 'host') {
-      // Host: listen for new clients joining
-      cleanups.push(
-        ws.on('client_joined', ({ clientId: newClientId }) => {
-          console.log('Client joined:', newClientId);
-          // Add new player (they will send their info shortly)
-          setPlayers(prev => {
-            if (prev.find(p => p.id === newClientId)) return prev;
-            return [...prev, {
-              id: newClientId,
-              name: 'Connecting...',
-              color: getRandomColor(),
-              role: 'client',
-              team: null,
-              assignedCountries: [],
-              ready: false,
-            }];
-          });
-        })
-      );
+    // Listen for state updates from server
+    cleanups.push(
+      ws.on('state_update', ({ state }) => {
+        setPlayers(state.players);
+        setAxisCountries(state.axisCountries);
+        setAlliedCountries(state.alliedCountries);
+      })
+    );
 
-      cleanups.push(
-        ws.on('client_left', ({ clientId: leftClientId }) => {
-          console.log('Client left:', leftClientId);
-          // Remove player and unassign their countries
-          setPlayers(prev => {
-            const leavingPlayer = prev.find(p => p.id === leftClientId);
-            if (leavingPlayer) {
-              // Unassign countries
-              if (leavingPlayer.team === 'axis') {
-                setAxisCountries(countries =>
-                  countries.map(c =>
-                    leavingPlayer.assignedCountries.includes(c.id)
-                      ? { ...c, status: 'available', assignedToPlayerId: undefined }
-                      : c
-                  )
-                );
-              } else if (leavingPlayer.team === 'allies') {
-                setAlliedCountries(countries =>
-                  countries.map(c =>
-                    leavingPlayer.assignedCountries.includes(c.id)
-                      ? { ...c, status: 'available', assignedToPlayerId: undefined }
-                      : c
-                  )
-                );
-              }
-            }
-            return prev.filter(p => p.id !== leftClientId);
-          });
-        })
-      );
+    // Listen for game started
+    cleanups.push(
+      ws.on('game_started', ({ state }) => {
+        setPlayers(state.players);
+        setAxisCountries(state.axisCountries);
+        setAlliedCountries(state.alliedCountries);
+        onStartGame();
+      })
+    );
 
-      // Host: listen for client actions
-      cleanups.push(
-        ws.on('client_action', ({ payload }) => {
-          const { clientId: actionClientId, action } = payload;
-
-          switch (action.type) {
-            case 'player_info':
-              setPlayers(prev => prev.map(p =>
-                p.id === actionClientId
-                  ? { ...p, name: action.name, color: action.color }
-                  : p
-              ));
-              break;
-
-            case 'join_team':
-              handlePlayerTeamChange(actionClientId, action.team);
-              break;
-
-            case 'assign_country':
-              handleCountryAssignment(action.countryId, action.playerId);
-              break;
-
-            case 'unassign_country':
-              handleCountryUnassignment(action.countryId);
-              break;
-
-            case 'set_ready':
-              setPlayers(prev => prev.map(p =>
-                p.id === actionClientId ? { ...p, ready: action.ready } : p
-              ));
-              break;
-          }
-        })
-      );
-    } else {
-      // Client: listen for host updates
-      cleanups.push(
-        ws.on('host_update', ({ payload }) => {
-          setPlayers(payload.players);
-          setAxisCountries(payload.axisCountries);
-          setAlliedCountries(payload.alliedCountries);
-
-          if (payload.started) {
-            onStartGame();
-          }
-        })
-      );
-
-      // Send our player info to host
-      ws.send({
-        type: 'client_action',
-        payload: {
-          clientId,
-          action: { type: 'player_info', name: playerName, color: myColor.current },
-        },
-      });
-    }
+    // Listen for player events (optional notifications)
+    cleanups.push(
+      ws.on('player_joined', ({ playerName: name }) => {
+        console.log(`${name} joined the game`);
+      })
+    );
 
     cleanups.push(
-      ws.on('game_closed', () => {
-        setConnectionStatus('disconnected');
-        onLeave();
+      ws.on('player_disconnected', ({ playerName: name }) => {
+        console.log(`${name} disconnected`);
+      })
+    );
+
+    cleanups.push(
+      ws.on('player_reconnected', ({ playerName: name }) => {
+        console.log(`${name} reconnected`);
       })
     );
 
@@ -237,152 +93,27 @@ export function GameLobby({
     );
 
     return () => cleanups.forEach(cleanup => cleanup());
-  }, [ws, role, clientId, playerName, onLeave, onStartGame]);
+  }, [ws, onStartGame]);
 
-  // Helper: Change player's team
-  const handlePlayerTeamChange = (playerId: string, newTeam: 'axis' | 'allies' | null) => {
-    setPlayers(prev => {
-      const player = prev.find(p => p.id === playerId);
-      if (!player) return prev;
-
-      // Unassign countries from old team
-      if (player.team === 'axis' && player.assignedCountries.length > 0) {
-        setAxisCountries(countries =>
-          countries.map(c =>
-            player.assignedCountries.includes(c.id)
-              ? { ...c, status: 'available', assignedToPlayerId: undefined }
-              : c
-          )
-        );
-      } else if (player.team === 'allies' && player.assignedCountries.length > 0) {
-        setAlliedCountries(countries =>
-          countries.map(c =>
-            player.assignedCountries.includes(c.id)
-              ? { ...c, status: 'available', assignedToPlayerId: undefined }
-              : c
-          )
-        );
-      }
-
-      return prev.map(p =>
-        p.id === playerId ? { ...p, team: newTeam, assignedCountries: [] } : p
-      );
-    });
-  };
-
-  // Helper: Assign country to player
-  const handleCountryAssignment = (countryId: string, playerId: string) => {
-    const player = players.find(p => p.id === playerId);
-    if (!player) return;
-
-    const isAxisCountry = axisCountries.some(c => c.id === countryId);
-
-    if (isAxisCountry) {
-      // Remove from previous owner
-      const prevOwner = axisCountries.find(c => c.id === countryId)?.assignedToPlayerId;
-      if (prevOwner) {
-        setPlayers(prev => prev.map(p =>
-          p.id === prevOwner
-            ? { ...p, assignedCountries: p.assignedCountries.filter(id => id !== countryId) }
-            : p
-        ));
-      }
-
-      setAxisCountries(prev => prev.map(c =>
-        c.id === countryId ? { ...c, status: 'assigned', assignedToPlayerId: playerId } : c
-      ));
-      setPlayers(prev => prev.map(p =>
-        p.id === playerId
-          ? { ...p, assignedCountries: [...p.assignedCountries.filter(id => id !== countryId), countryId] }
-          : p
-      ));
-    } else {
-      // Allied country
-      const prevOwner = alliedCountries.find(c => c.id === countryId)?.assignedToPlayerId;
-      if (prevOwner) {
-        setPlayers(prev => prev.map(p =>
-          p.id === prevOwner
-            ? { ...p, assignedCountries: p.assignedCountries.filter(id => id !== countryId) }
-            : p
-        ));
-      }
-
-      setAlliedCountries(prev => prev.map(c =>
-        c.id === countryId ? { ...c, status: 'assigned', assignedToPlayerId: playerId } : c
-      ));
-      setPlayers(prev => prev.map(p =>
-        p.id === playerId
-          ? { ...p, assignedCountries: [...p.assignedCountries.filter(id => id !== countryId), countryId] }
-          : p
-      ));
-    }
-  };
-
-  // Helper: Unassign country
-  const handleCountryUnassignment = (countryId: string) => {
-    const axisCountry = axisCountries.find(c => c.id === countryId);
-    const alliedCountry = alliedCountries.find(c => c.id === countryId);
-
-    if (axisCountry?.assignedToPlayerId) {
-      setPlayers(prev => prev.map(p =>
-        p.id === axisCountry.assignedToPlayerId
-          ? { ...p, assignedCountries: p.assignedCountries.filter(id => id !== countryId) }
-          : p
-      ));
-      setAxisCountries(prev => prev.map(c =>
-        c.id === countryId ? { ...c, status: 'available', assignedToPlayerId: undefined } : c
-      ));
-    } else if (alliedCountry?.assignedToPlayerId) {
-      setPlayers(prev => prev.map(p =>
-        p.id === alliedCountry.assignedToPlayerId
-          ? { ...p, assignedCountries: p.assignedCountries.filter(id => id !== countryId) }
-          : p
-      ));
-      setAlliedCountries(prev => prev.map(c =>
-        c.id === countryId ? { ...c, status: 'available', assignedToPlayerId: undefined } : c
-      ));
-    }
-  };
-
-  // Send action to host (client) or apply directly (host)
-  const sendAction = useCallback((action: any) => {
-    if (role === 'host') {
-      // Apply directly
-      switch (action.type) {
-        case 'join_team':
-          handlePlayerTeamChange(clientId, action.team);
-          break;
-        case 'assign_country':
-          handleCountryAssignment(action.countryId, action.playerId);
-          break;
-        case 'unassign_country':
-          handleCountryUnassignment(action.countryId);
-          break;
-      }
-    } else if (ws) {
-      // Send to host
-      ws.send({
-        type: 'client_action',
-        payload: { clientId, action },
-      });
-    }
-  }, [role, ws, clientId]);
+  // Send action to server
+  const sendAction = useCallback((action: Parameters<WsClient['sendAction']>[0]) => {
+    if (!ws) return;
+    ws.sendAction(action);
+  }, [ws]);
 
   // Get players by team
-  const spectators = players.filter((p) => p.team === null);
-  const axisPlayers = players.filter((p) => p.team === 'axis');
-  const alliedPlayers = players.filter((p) => p.team === 'allies');
-  const currentPlayer = players.find((p) => p.id === clientId);
-  const currentPlayerTeam = currentPlayer?.team || null;
+  const spectators = players.filter(p => p.team === null);
+  const axisPlayers = players.filter(p => p.team === 'axis');
+  const alliedPlayers = players.filter(p => p.team === 'allies');
 
-  // UI Handlers
-  const handlePlayerLeaveTeam = (playerId: string) => {
-    if (playerId !== clientId) return; // Can only move yourself
+  // UI Handlers - all actions go to server
+  const handlePlayerLeaveTeam = (pName: string) => {
+    if (pName !== playerName) return; // Can only move yourself
     sendAction({ type: 'join_team', team: null });
   };
 
-  const handlePlayerJoinTeam = (team: 'axis' | 'allies') => (playerId: string) => {
-    if (playerId !== clientId) return; // Can only move yourself
+  const handlePlayerJoinTeam = (team: 'axis' | 'allies') => (pName: string) => {
+    if (pName !== playerName) return; // Can only move yourself
     sendAction({ type: 'join_team', team });
   };
 
@@ -390,9 +121,9 @@ export function GameLobby({
     // Visual feedback only
   };
 
-  const handleCountryDrop = (_team: 'axis' | 'allies') => (countryId: string, playerId: string) => {
-    if (playerId !== clientId) return; // Can only assign to yourself
-    sendAction({ type: 'assign_country', countryId, playerId });
+  const handleCountryDrop = (_team: 'axis' | 'allies') => (countryId: string, targetPlayerName: string) => {
+    if (targetPlayerName !== playerName) return; // Can only assign to yourself
+    sendAction({ type: 'assign_country', countryId });
   };
 
   const handleCountryUnassign = (_team: 'axis' | 'allies') => (countryId: string) => {
@@ -404,20 +135,9 @@ export function GameLobby({
   };
 
   const handleStartGame = () => {
-    if (role === 'host' && ws) {
-      // Broadcast game start
-      ws.send({
-        type: 'host_update',
-        payload: {
-          gameId: gameCode,
-          players,
-          axisCountries,
-          alliedCountries,
-          started: true,
-        },
-      });
+    if (isHost) {
+      sendAction({ type: 'start_game' });
     }
-    onStartGame();
   };
 
   return (
@@ -459,8 +179,14 @@ export function GameLobby({
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm font-typewriter text-ink-faded border px-3 py-1 border-ink-faded/30 bg-paper-aged/30">
               <Users size={16} />
-              {players.length} Player{players.length !== 1 ? 's' : ''}
+              {players.filter(p => p.connected).length}/{players.length} Online
             </div>
+            {isHost && (
+              <div className="flex items-center gap-2 text-sm font-typewriter text-military-navy border px-3 py-1 border-military-khaki/30 bg-paper-aged/30">
+                <Crown size={16} />
+                HOST
+              </div>
+            )}
             <div className={`hidden md:flex items-center gap-2 text-sm font-typewriter border px-3 py-1 border-ink-faded/30 bg-paper-aged/30 ${
               connectionStatus === 'connected' ? 'text-green-700' : 'text-red-700'
             }`}>
@@ -488,7 +214,7 @@ export function GameLobby({
                 ? 'Drag yourself to join Axis or Allied forces, then command territories.'
                 : 'Drag territories to your zone. You can only control your own forces.'}
             </p>
-            {role === 'host' && (
+            {isHost && (
               <p className="font-typewriter text-military-green text-sm mt-1">
                 You are the host. Share the code above with others to join.
               </p>
@@ -497,8 +223,14 @@ export function GameLobby({
 
           {/* Spectators Section - Always visible */}
           <SpectatorSection
-            spectators={spectators}
-            currentPlayerId={clientId}
+            spectators={spectators.map(p => ({
+              id: p.name,
+              name: p.name,
+              color: p.color,
+              connected: p.connected,
+              isHost: p.isHost,
+            }))}
+            currentPlayerId={playerName}
             onPlayerDragStart={() => {}}
             onPlayerDrop={handlePlayerLeaveTeam}
           />
@@ -508,8 +240,18 @@ export function GameLobby({
             <TeamSection
               team="axis"
               countries={axisCountries}
-              players={axisPlayers}
-              currentPlayerId={clientId}
+              players={axisPlayers.map(p => ({
+                id: p.name,
+                name: p.name,
+                color: p.color,
+                role: p.isHost ? 'host' : 'client',
+                team: p.team,
+                assignedCountries: p.assignedCountries,
+                ready: false,
+                connected: p.connected,
+                isHost: p.isHost,
+              }))}
+              currentPlayerId={playerName}
               currentPlayerTeam={currentPlayerTeam}
               onCountryDragStart={handleCountryDragStart('axis')}
               onCountryDrop={handleCountryDrop('axis')}
@@ -529,8 +271,18 @@ export function GameLobby({
             <TeamSection
               team="allies"
               countries={alliedCountries}
-              players={alliedPlayers}
-              currentPlayerId={clientId}
+              players={alliedPlayers.map(p => ({
+                id: p.name,
+                name: p.name,
+                color: p.color,
+                role: p.isHost ? 'host' : 'client',
+                team: p.team,
+                assignedCountries: p.assignedCountries,
+                ready: false,
+                connected: p.connected,
+                isHost: p.isHost,
+              }))}
+              currentPlayerId={playerName}
               currentPlayerTeam={currentPlayerTeam}
               onCountryDragStart={handleCountryDragStart('allies')}
               onCountryDrop={handleCountryDrop('allies')}
@@ -542,7 +294,7 @@ export function GameLobby({
       </main>
 
       {/* Start Button - Host only */}
-      {role === 'host' && (
+      {isHost && (
         <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-30">
           <motion.button
             onClick={handleStartGame}

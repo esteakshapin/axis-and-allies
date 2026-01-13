@@ -1,12 +1,11 @@
-// Player in the game lobby
-export type LobbyPlayer = {
-  id: string;
+// Player info in game state
+export type PlayerInfo = {
   name: string;
   color: string;
-  role: 'host' | 'client';
   team: 'axis' | 'allies' | null;
   assignedCountries: string[];
-  ready: boolean;
+  isHost: boolean;
+  connected: boolean;
 };
 
 // Country/Territory assignment
@@ -15,43 +14,41 @@ export type CountryAssignment = {
   name: string;
   flagImage: string;
   status: 'available' | 'assigned';
-  assignedToPlayerId?: string;
+  assignedToPlayer?: string; // Player name
 };
 
-// Client action payload - what clients send to host
-export type ClientActionPayload = {
-  clientId: string;
-  action:
-    | { type: 'join_team'; team: 'axis' | 'allies' | null }
-    | { type: 'assign_country'; countryId: string; playerId: string }
-    | { type: 'unassign_country'; countryId: string }
-    | { type: 'set_ready'; ready: boolean }
-    | { type: 'player_info'; name: string; color: string };
-};
-
-// Host update payload - what host broadcasts to all clients
-export type HostUpdatePayload = {
+// Full game state from server
+export type GameState = {
   gameId: string;
-  players: LobbyPlayer[];
+  players: PlayerInfo[];
   axisCountries: CountryAssignment[];
   alliedCountries: CountryAssignment[];
   started: boolean;
 };
 
-type ClientMessage =
-  | { type: 'create_game'; clientId: string; gameId?: string }
-  | { type: 'join_game'; clientId: string; gameId: string }
-  | { type: 'host_update'; payload: HostUpdatePayload }
-  | { type: 'client_action'; payload: ClientActionPayload };
+// Player actions sent to server
+export type PlayerAction =
+  | { type: 'join_team'; team: 'axis' | 'allies' | null }
+  | { type: 'assign_country'; countryId: string }
+  | { type: 'unassign_country'; countryId: string }
+  | { type: 'start_game' };
 
+// Messages client sends to server
+type ClientMessage =
+  | { type: 'create_game'; playerName: string; playerColor?: string; gameId?: string }
+  | { type: 'join_game'; playerName: string; playerColor?: string; gameId: string }
+  | { type: 'player_action'; action: PlayerAction };
+
+// Messages server sends to client
 type ServerMessage =
-  | { type: 'game_created'; gameId: string; clientId: string }
-  | { type: 'joined_game'; gameId: string; clientId: string }
-  | { type: 'client_joined'; gameId: string; clientId: string }
-  | { type: 'client_left'; gameId: string; clientId: string }
-  | { type: 'host_update'; gameId: string; payload: HostUpdatePayload }
-  | { type: 'client_action'; gameId: string; payload: ClientActionPayload }
-  | { type: 'game_closed'; reason: string }
+  | { type: 'game_created'; gameId: string; playerName: string; state: GameState }
+  | { type: 'joined_game'; gameId: string; playerName: string; state: GameState }
+  | { type: 'rejoined_game'; gameId: string; playerName: string; state: GameState }
+  | { type: 'state_update'; state: GameState }
+  | { type: 'player_joined'; playerName: string }
+  | { type: 'player_disconnected'; playerName: string }
+  | { type: 'player_reconnected'; playerName: string }
+  | { type: 'game_started'; state: GameState }
   | { type: 'error'; reason: string };
 
 type HandlerBucket<K extends ServerMessage['type']> = Set<
@@ -61,22 +58,24 @@ type HandlerBucket<K extends ServerMessage['type']> = Set<
 type HandlerMap = {
   game_created: HandlerBucket<'game_created'>;
   joined_game: HandlerBucket<'joined_game'>;
-  client_joined: HandlerBucket<'client_joined'>;
-  client_left: HandlerBucket<'client_left'>;
-  host_update: HandlerBucket<'host_update'>;
-  client_action: HandlerBucket<'client_action'>;
-  game_closed: HandlerBucket<'game_closed'>;
+  rejoined_game: HandlerBucket<'rejoined_game'>;
+  state_update: HandlerBucket<'state_update'>;
+  player_joined: HandlerBucket<'player_joined'>;
+  player_disconnected: HandlerBucket<'player_disconnected'>;
+  player_reconnected: HandlerBucket<'player_reconnected'>;
+  game_started: HandlerBucket<'game_started'>;
   error: HandlerBucket<'error'>;
 };
 
 const createHandlerMap = (): HandlerMap => ({
   game_created: new Set(),
   joined_game: new Set(),
-  client_joined: new Set(),
-  client_left: new Set(),
-  host_update: new Set(),
-  client_action: new Set(),
-  game_closed: new Set(),
+  rejoined_game: new Set(),
+  state_update: new Set(),
+  player_joined: new Set(),
+  player_disconnected: new Set(),
+  player_reconnected: new Set(),
+  game_started: new Set(),
   error: new Set(),
 });
 
@@ -125,6 +124,10 @@ export class WsClient {
       throw new Error('WebSocket is not connected');
     }
     this.socket.send(JSON.stringify(message));
+  }
+
+  sendAction(action: PlayerAction) {
+    this.send({ type: 'player_action', action });
   }
 
   onClose(handler: () => void): () => void {

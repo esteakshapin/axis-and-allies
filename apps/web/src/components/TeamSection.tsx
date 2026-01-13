@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Shield, Swords } from 'lucide-react';
+import { Shield, Swords, Crown } from 'lucide-react';
 import { CountryAvatar, CountryStatus } from './CountryAvatar';
 
 interface Country {
@@ -8,7 +8,7 @@ interface Country {
   name: string;
   flagImage: string;
   status: CountryStatus;
-  assignedToPlayerId?: string;
+  assignedToPlayer?: string; // Player name
 }
 
 interface Player {
@@ -17,6 +17,8 @@ interface Player {
   color: string;
   team: 'axis' | 'allies' | null;
   assignedCountries: string[];
+  connected?: boolean;
+  isHost?: boolean;
 }
 
 interface TeamSectionProps {
@@ -220,6 +222,8 @@ function PlayerCard({
     }
   };
 
+  const isDisconnected = player.connected === false;
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -229,6 +233,7 @@ function PlayerCard({
         p-3 rounded border-2 transition-all
         ${isCurrentPlayer ? 'border-military-khaki bg-military-khaki/10' : 'border-ink/20 bg-paper'}
         ${isDragOver ? 'ring-2 ring-military-green scale-[1.02]' : ''}
+        ${isDisconnected ? 'opacity-50' : ''}
       `}
     >
       <div className="flex items-center justify-between mb-2">
@@ -244,11 +249,17 @@ function PlayerCard({
             isCurrentPlayer ? 'cursor-grab active:cursor-grabbing hover:bg-military-khaki/20 px-2 py-1 -mx-2 -my-1 rounded' : ''
           }`}
         >
-          <div className={`w-4 h-4 rounded-full ${player.color}`} />
-          <span className="font-typewriter font-bold text-ink">
+          <div className={`w-4 h-4 rounded-full ${player.color} ${isDisconnected ? 'grayscale' : ''}`} />
+          <span className={`font-typewriter font-bold ${isDisconnected ? 'text-ink-faded' : 'text-ink'}`}>
             {player.name}
+            {player.isHost && (
+              <Crown size={14} className="inline ml-1 text-military-khaki" />
+            )}
             {isCurrentPlayer && (
               <span className="text-ink-faded font-normal ml-1">(You - drag to leave)</span>
+            )}
+            {isDisconnected && (
+              <span className="text-military-red font-normal ml-1 text-xs">(Offline)</span>
             )}
           </span>
         </div>
